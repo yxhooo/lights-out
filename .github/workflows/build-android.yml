@@ -22,29 +22,50 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev cmake libffi-dev libssl-dev build-essential openjdk-11-jdk-headless
+        sudo apt-get install -y \
+          git zip unzip autoconf libtool pkg-config \
+          zlib1g-dev cmake libffi-dev libssl-dev \
+          build-essential openjdk-17-jdk-headless
 
-    - name: Install Buildozer
+    - name: Install Buildozer 1.5.0
       run: |
         pip install --upgrade pip setuptools wheel
         pip install Cython==0.29.19 buildozer==1.5.0
 
-    - name: Write buildozer.spec
+    - name: Create buildozer.spec with NDK r25c
       run: |
-        printf '%s\n' \
-          '[app]' "title = Lights Out" "package.name = lightsout" "package.domain = org.example" \
-          "source.dir = ." "source.include_exts = py,png,jpg,kv,json" "version = 0.1" "version.code = 1" \
-          "requirements = python3,kivy" \
-          "icon.filename = %(source.dir)s/icon.png" "presplash.filename = %(source.dir)s/presplash.png" \
-          "orientation = portrait" "android.api = 33" "android.minapi = 21" "android.ndk = 25c" \
-          "fullscreen = 0" '[buildozer]' "log_level = 2" > buildozer.spec
+        cat > buildozer.spec << 'EOF'
+[app]
+title = Lights Out
+package.name = lightsout
+package.domain = org.example
+source.dir = .
+source.include_exts = py,png,jpg,kv,json
+version = 0.1
+version.code = 1
+requirements = python3,kivy
+icon.filename = %(source.dir)s/icon.png
+presplash.filename = %(source.dir)s/presplash.png
+orientation = portrait
+android.api = 33
+android.minapi = 21
+android.ndk = 25c
+fullscreen = 0
+
+[buildozer]
+log_level = 2
+EOF
 
     - name: Build APK (with full log)
       run: |
-        yes | buildozer android debug verbose 2>&1 | tee build-output.log
-      env:
-        GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m"
+        yes | buildozer android debug 2>&1 | tee build-output.log
       timeout-minutes: 90
+
+    - name: Find APK location
+      run: |
+        echo "=== Searching for APK files ==="
+        find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
+        ls -la bin/ 2>/dev/null || echo "bin/ directory not found"
 
     - name: Upload full build log
       if: always()
@@ -59,5 +80,7 @@ jobs:
       if: always()
       with:
         name: lights-out-apk
-        path: bin/*.apk
+        path: |
+          **/*.apk
+          bin/
         retention-days: 30
