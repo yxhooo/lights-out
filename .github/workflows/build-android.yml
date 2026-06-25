@@ -26,7 +26,7 @@ jobs:
           git zip unzip \
           openjdk-8-jdk-headless \
           autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev libtinfo5 \
+          libncurses-dev libncursesw6-dev \
           cmake libffi-dev libssl-dev \
           build-essential
 
@@ -34,16 +34,11 @@ jobs:
       run: |
         pip install --upgrade pip setuptools wheel
         pip install Cython==0.29.19 buildozer==1.4.0
-        buildozer --version
 
     - name: Build APK
       run: |
         export PATH=$PATH:$HOME/.local/bin
-        export ANDROID_HOME=$HOME/.buildozer/android/platform
-        export NDK_ROOT=$HOME/.buildozer/android/ndk
         buildozer android debug verbose
-      env:
-        BUILDOZER_WARN_ON_ROOT: "1"
       timeout-minutes: 90
 
     - name: Upload APK artifact
