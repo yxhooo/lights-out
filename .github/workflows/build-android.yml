@@ -25,39 +25,39 @@ jobs:
         sudo apt-get install -y \
           git zip unzip autoconf libtool pkg-config \
           zlib1g-dev cmake libffi-dev libssl-dev \
-          build-essential openjdk-11-jdk-headless wget
+          build-essential openjdk-11-jdk-headless
 
-    - name: Download Android command-line tools
-      run: |
-        mkdir -p $HOME/android-sdk/cmdline-tools
-        cd /tmp
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-9477386_latest.zip
-        mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest
-
-    - name: Install Android SDK + NDK
-      run: |
-        export ANDROID_HOME=$HOME/android-sdk
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-        yes | sdkmanager --licenses > /dev/null 2>&1 || true
-        sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
-
-    - name: Verify aidl exists
-      run: |
-        ls -la $HOME/android-sdk/build-tools/33.0.2/aidl
-        echo "aidl found OK"
-
-    - name: Install Buildozer
+    - name: Install Buildozer 1.5.0
       run: |
         pip install --upgrade pip setuptools wheel
-        pip install Cython==0.29.19 buildozer==1.4.0
+        pip install Cython==0.29.19 buildozer==1.5.0
+
+    - name: Create buildozer.spec with NDK 25c
+      run: |
+        cat > buildozer.spec << 'EOF'
+[app]
+title = Lights Out
+package.name = lightsout
+package.domain = org.example
+source.dir = .
+source.include_exts = py,png,jpg,kv,json
+version = 0.1
+version.code = 1
+requirements = python3,kivy
+icon.filename = %(source.dir)s/icon.png
+presplash.filename = %(source.dir)s/presplash.png
+orientation = portrait
+android.api = 33
+android.minapi = 21
+android.ndk = 25c
+fullscreen = 0
+
+[buildozer]
+log_level = 2
+EOF
 
     - name: Build APK
       run: |
-        export ANDROID_HOME=$HOME/android-sdk
-        export ANDROID_SDK_ROOT=$HOME/android-sdk
-        mkdir -p $HOME/.buildozer/android/platform
-        ln -sfT $HOME/android-sdk $HOME/.buildozer/android/platform/android-sdk
         yes | buildozer android debug
       timeout-minutes: 90
 
