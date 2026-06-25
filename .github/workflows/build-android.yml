@@ -8,34 +8,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: kivy/buildozer:latest
+
     timeout-minutes: 120
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.8'
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip autoconf libtool pkg-config \
-          zlib1g-dev cmake libffi-dev libssl-dev \
-          openjdk-17-jdk-headless build-essential
-
-    - name: Install Buildozer
-      run: |
-        pip install --upgrade pip setuptools wheel
-        pip install Cython==0.29.19 buildozer==1.4.0
-
     - name: Build APK
       run: |
-        export PATH=$PATH:$HOME/.local/bin
-        buildozer android debug verbose
+        buildozer android debug
+      env:
+        BUILDOZER_WARN_ON_ROOT: "1"
       timeout-minutes: 90
 
     - name: Upload APK artifact
