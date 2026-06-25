@@ -19,9 +19,7 @@ jobs:
 
     - name: Build APK
       run: |
-        buildozer android debug
-      env:
-        BUILDOZER_WARN_ON_ROOT: "1"
+        echo "y" | buildozer android debug
       timeout-minutes: 90
 
     - name: Upload APK artifact
