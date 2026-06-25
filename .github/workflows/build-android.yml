@@ -44,15 +44,18 @@ jobs:
 
     - name: Verify aidl exists
       run: |
-        $HOME/android-sdk/build-tools/33.0.2/aidl --version
+        ls -la $HOME/android-sdk/build-tools/33.0.2/aidl
+        echo "aidl found OK"
 
     - name: Install Buildozer
       run: |
+        pip install --upgrade pip setuptools wheel
         pip install Cython==0.29.19 buildozer==1.4.0
 
     - name: Build APK
       run: |
         export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_SDK_ROOT=$HOME/android-sdk
         mkdir -p $HOME/.buildozer/android/platform
         ln -sfT $HOME/android-sdk $HOME/.buildozer/android/platform/android-sdk
         yes | buildozer android debug
