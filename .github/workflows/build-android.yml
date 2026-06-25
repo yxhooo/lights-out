@@ -8,21 +8,28 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: kivy/buildozer:latest
-
     timeout-minutes: 120
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Fix Android SDK
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.8'
+
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install dependencies + Buildozer
       run: |
-        export ANDROID_HOME=/opt/android-sdk
-        yes | sdkmanager "platforms;android-33" "build-tools;33.0.2"
-        mkdir -p $HOME/.buildozer/android/platform
-        ln -sf /opt/android-sdk $HOME/.buildozer/android/platform/android-sdk
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip autoconf libtool \
+          pkg-config zlib1g-dev cmake libffi-dev libssl-dev \
+          build-essential openjdk-17-jdk-headless
+        pip install --upgrade pip setuptools wheel
+        pip install Cython==0.29.19 buildozer==1.4.0
 
     - name: Build APK
       run: |
