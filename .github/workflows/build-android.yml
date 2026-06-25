@@ -19,10 +19,17 @@ jobs:
       with:
         python-version: '3.8'
 
-    - name: Install system dependencies
+    - name: Install system dependencies + Java 17
       run: |
         sudo apt-get update
         sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev cmake libffi-dev libssl-dev build-essential openjdk-17-jdk-headless
+        sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+        echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+
+    - name: Verify Java version
+      run: |
+        java -version
+        echo "JAVA_HOME=$JAVA_HOME"
 
     - name: Install Buildozer 1.5.0
       run: |
@@ -35,6 +42,7 @@ jobs:
 
     - name: Build APK
       run: |
+        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
         yes | buildozer android debug 2>&1 | tee build-output.log
       timeout-minutes: 90
 
