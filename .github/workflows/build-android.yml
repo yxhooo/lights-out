@@ -32,29 +32,27 @@ jobs:
     - name: Write buildozer.spec
       run: |
         printf '%s\n' \
-          '[app]' \
-          "title = Lights Out" \
-          "package.name = lightsout" \
-          "package.domain = org.example" \
-          "source.dir = ." \
-          "source.include_exts = py,png,jpg,kv,json" \
-          "version = 0.1" \
-          "version.code = 1" \
+          '[app]' "title = Lights Out" "package.name = lightsout" "package.domain = org.example" \
+          "source.dir = ." "source.include_exts = py,png,jpg,kv,json" "version = 0.1" "version.code = 1" \
           "requirements = python3,kivy" \
-          "icon.filename = %(source.dir)s/icon.png" \
-          "presplash.filename = %(source.dir)s/presplash.png" \
-          "orientation = portrait" \
-          "android.api = 33" \
-          "android.minapi = 21" \
-          "android.ndk = 25c" \
-          "fullscreen = 0" \
-          '[buildozer]' \
-          "log_level = 2" \
-          > buildozer.spec
+          "icon.filename = %(source.dir)s/icon.png" "presplash.filename = %(source.dir)s/presplash.png" \
+          "orientation = portrait" "android.api = 33" "android.minapi = 21" "android.ndk = 25c" \
+          "fullscreen = 0" '[buildozer]' "log_level = 2" > buildozer.spec
 
-    - name: Build APK
-      run: yes | buildozer android debug
+    - name: Build APK (with full log)
+      run: |
+        yes | buildozer android debug verbose 2>&1 | tee build-output.log
+      env:
+        GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m"
       timeout-minutes: 90
+
+    - name: Upload full build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build-output.log
+        retention-days: 30
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
