@@ -17,6 +17,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Fix Android SDK
+      run: |
+        export ANDROID_HOME=/opt/android-sdk
+        yes | sdkmanager "platforms;android-33" "build-tools;33.0.2"
+        mkdir -p $HOME/.buildozer/android/platform
+        ln -sf /opt/android-sdk $HOME/.buildozer/android/platform/android-sdk
+
     - name: Build APK
       run: |
         echo "y" | buildozer android debug
