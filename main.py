@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 from random import randint
 
@@ -7,7 +8,6 @@ from random import randint
 from kivy.config import Config
 Config.set('graphics', 'width', '360')
 Config.set('graphics', 'height', '640')
-Config.set('graphics', 'fullscreen', '0')
 
 from kivy.app import App
 from kivy.uix.gridlayout import GridLayout
@@ -17,6 +17,8 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.utils import platform
+from kivy.graphics import Color, Rectangle, Line
+from kivy.uix.widget import Widget
 
 # ======================== 配置 ========================
 GRID_SIZE = 5
@@ -33,6 +35,17 @@ if platform == 'android':
     except Exception:
         RECORD_FILE = "lights_out_record.json"
 
+
+def log_error(msg):
+    """将错误信息写入文件"""
+    try:
+        log_path = RECORD_FILE.replace(".json", "_crash_log.txt")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write("%s\n" % msg)
+    except Exception:
+        pass
+
+
 class GameState:
     def __init__(self):
         self.light_states = []
@@ -48,13 +61,17 @@ class GameState:
             if os.path.exists(RECORD_FILE):
                 with open(RECORD_FILE, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
-                    self.best_record = {int(k): (float(v[0]), float(v[1])) for k, v in loaded.items()}
+                    self.best_record = {
+                        int(k): (float(v[0]), float(v[1]))
+                        for k, v in loaded.items()
+                    }
                 for i in range(2, 11):
                     if i not in self.best_record:
                         self.best_record[i] = default_record[i]
             else:
                 self.best_record = default_record
-        except Exception:
+        except Exception as e:
+            log_error("GameState.load_record error: %s" % str(e))
             self.best_record = default_record
 
     def save_record(self):
@@ -62,8 +79,8 @@ class GameState:
             save_data = {str(k): list(v) for k, v in self.best_record.items()}
             with open(RECORD_FILE, "w", encoding="utf-8") as f:
                 json.dump(save_data, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            log_error("GameState.save_record error: %s" % str(e))
 
     def reset_game(self):
         self.current_steps = 0
@@ -71,7 +88,9 @@ class GameState:
         if self.timer_event:
             Clock.unschedule(self.timer_event)
             self.timer_event = None
-        self.light_states = [[False for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+        self.light_states = [
+            [False for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)
+        ]
         rand_clicks = 25
         for _ in range(rand_clicks):
             r = randint(0, GRID_SIZE - 1)
@@ -101,20 +120,25 @@ class GameState:
         return all(not cell for row in self.light_states for cell in row)
 
 
-class LightButton(Button):
+class LightButton(Widget):
+    """自定义灯按钮：用 Canvas 绘制，避免原生 Button 的兼容性问题"""
+
     def __init__(self, row, col, game_state, **kwargs):
-        super().__init__(**kwargs)
+        super(LightButton, self).__init__(**kwargs)
         self.row = row
         self.col = col
         self.game_state = game_state
-        self.background_normal = ''
-        self.background_color = (0.27, 0.27, 0.27, 1)
-        self.bind(on_press=self.on_click)
+        self.size_hint = (1, 1)
+        self.is_on = False
+        self.bind(on_touch_down=self.on_touch)
 
-    def on_click(self, instance):
-        self.game_state.click(self.row, self.col)
-        self.parent.refresh_buttons()
-        self._update_win_check()
+    def on_touch(self, instance, touch):
+        if self.collide_point(*touch.pos):
+            self.game_state.click(self.row, self.col)
+            self.parent.refresh_buttons()
+            self._update_win_check()
+            return True
+        return False
 
     def _update_win_check(self):
         if self.game_state.check_win():
@@ -122,38 +146,59 @@ class LightButton(Button):
                 Clock.unschedule(self.game_state.timer_event)
                 self.game_state.timer_event = None
             use_time = self.game_state.get_elapsed()
-            best_step, best_t = self.game_state.best_record.get(GRID_SIZE, (float("inf"), float("inf")))
+            best_step, best_t = self.game_state.best_record.get(
+                GRID_SIZE, (float("inf"), float("inf"))
+            )
             app = App.get_running_app()
             if self.game_state.current_steps < best_step or \
                (self.game_state.current_steps == best_step and use_time < best_t):
-                self.game_state.best_record[GRID_SIZE] = (self.game_state.current_steps, use_time)
+                self.game_state.best_record[GRID_SIZE] = (
+                    self.game_state.current_steps, use_time
+                )
                 self.game_state.save_record()
             root = app.root
             if root:
                 root.update_best_label(GRID_SIZE, self.game_state.best_record)
-            content = BoxLayout(orientation='vertical', padding=20, spacing=10)
+            content = BoxLayout(
+                orientation='vertical', padding=20, spacing=10,
+                size_hint=(1, 1)
+            )
             content.add_widget(Label(
-                text='步数: %d\n用时: %s' % (self.game_state.current_steps, root.format_time(use_time)),
-                halign='center'
+                text='步数: %d\n用时: %s' % (
+                    self.game_state.current_steps,
+                    root.format_time(use_time) if root else "?"
+                ),
+                halign='center', size_hint_y=0.6
             ))
-            btn = Button(text='再来一局', size_hint=(1, 0.4))
+            btn = Button(text='再来一局', size_hint_y=0.4)
             popup = Popup(title='游戏胜利', content=content, size_hint=(0.8, 0.45))
             btn.bind(on_press=lambda x: (popup.dismiss(), root.reset_game()))
             content.add_widget(btn)
             popup.open()
 
     def update_visual(self):
-        is_on = self.game_state.light_states[self.row][self.col]
-        self.background_color = (0.98, 0.82, 0.14, 1) if is_on else (0.27, 0.27, 0.27, 1)
+        self.canvas.clear()
+        self.is_on = self.game_state.light_states[self.row][self.col]
+        if self.is_on:
+            bg_color = (0.98, 0.82, 0.14, 1)
+        else:
+            bg_color = (0.27, 0.27, 0.27, 1)
+        with self.canvas:
+            Color(*bg_color)
+            Rectangle(pos=self.pos, size=self.size)
+            Color(0.15, 0.15, 0.15, 1)
+            Line(rectangle=(self.x, self.y, self.width, self.height), width=1)
 
 
 class LightGrid(GridLayout):
     def __init__(self, game_state, **kwargs):
-        super().__init__(**kwargs)
+        super(LightGrid, self).__init__(**kwargs)
         self.cols = GRID_SIZE
         self.rows = GRID_SIZE
         self.game_state = game_state
         self.buttons = []
+        self.spacing = 2
+        self.padding = 2
         self._init_buttons()
 
     def _init_buttons(self):
@@ -176,46 +221,64 @@ class LightGrid(GridLayout):
 
 class GameRoot(BoxLayout):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super(GameRoot, self).__init__(**kwargs)
         self.orientation = 'vertical'
-        self.padding = [20, 20, 20, 20]
-        self.spacing = 10
-        self.game_state = GameState()
-        info_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
-        self.step_label = Label(text="步数: 0", size_hint=(0.3, 1))
-        self.time_label = Label(text="用时: 00:00.000", size_hint=(0.4, 1))
-        self.best_label = Label(text="最佳: 暂无", size_hint=(0.3, 1))
+        self.padding = [15, 15, 15, 15]
+        self.spacing = 8
+        try:
+            self.game_state = GameState()
+            self._build_ui()
+            self.reset_game()
+            self.update_best_label(GRID_SIZE, self.game_state.best_record)
+            Clock.schedule_interval(self._timer_tick, 0.05)
+        except Exception as e:
+            log_error("GameRoot init ERROR: %s" % str(e))
+            import traceback
+            log_error(traceback.format_exc())
+
+    def _build_ui(self):
+        info_layout = BoxLayout(size_hint=(1, 0.09), spacing=5)
+        self.step_label = Label(text="步数: 0", size_hint=(0.3, 1),
+                                font_size='16sp')
+        self.time_label = Label(text="用时: 00:00", size_hint=(0.4, 1),
+                                font_size='16sp')
+        self.best_label = Label(text="最佳: 暂无", size_hint=(0.3, 1),
+                                font_size='14sp')
         info_layout.add_widget(self.step_label)
         info_layout.add_widget(self.time_label)
         info_layout.add_widget(self.best_label)
         self.add_widget(info_layout)
-        self.grid = LightGrid(self.game_state, size_hint=(1, 0.8))
+
+        self.grid = LightGrid(self.game_state, size_hint=(1, 0.82))
         self.add_widget(self.grid)
-        btn_layout = BoxLayout(size_hint=(1, 0.1), spacing=10)
-        reset_btn = Button(text="重新开始")
+
+        btn_layout = BoxLayout(size_hint=(1, 0.09), spacing=10, padding=[0, 5, 0, 5])
+        reset_btn = Button(text='重新开始', font_size='16sp')
         reset_btn.bind(on_press=lambda x: self.reset_game())
         btn_layout.add_widget(reset_btn)
         self.add_widget(btn_layout)
-        self.reset_game()
-        self.update_best_label(GRID_SIZE, self.game_state.best_record)
-        Clock.schedule_interval(self._timer_tick, 0.05)
 
     def _timer_tick(self, dt):
-        if self.game_state.start_time is not None:
-            elapsed = self.game_state.get_elapsed()
-            self.time_label.text = "用时: %s" % self.format_time(elapsed)
-        self.step_label.text = "步数: %d" % self.game_state.current_steps
+        try:
+            if self.game_state.start_time is not None:
+                elapsed = self.game_state.get_elapsed()
+                self.time_label.text = "用时: %s" % self.format_time(elapsed)
+            self.step_label.text = "步数: %d" % self.game_state.current_steps
+        except Exception as e:
+            log_error("timer_tick error: %s" % str(e))
 
     def reset_game(self):
         self.game_state.reset_game()
         self.grid.refresh_buttons()
         self.step_label.text = "步数: 0"
-        self.time_label.text = "用时: 00:00.000"
+        self.time_label.text = "用时: 00:00"
 
     def update_best_label(self, grid_size, best_record):
         best_step, best_t = best_record.get(grid_size, (float("inf"), float("inf")))
         if best_step != float("inf"):
-            self.best_label.text = "最佳: %d步/%s" % (int(best_step), self.format_time(best_t))
+            self.best_label.text = "最佳: %d步/%s" % (
+                int(best_step), self.format_time(best_t)
+            )
         else:
             self.best_label.text = "最佳: 暂无"
 
@@ -223,14 +286,28 @@ class GameRoot(BoxLayout):
     def format_time(sec):
         m = int(sec // 60)
         s = int(sec % 60)
-        ms = int((sec - int(sec)) * 1000)
-        return "%02d:%02d.%03d" % (m, s, ms)
+        return "%02d:%02d" % (m, s)
 
 
 class GameApp(App):
+
     def build(self):
-        return GameRoot()
+        try:
+            return GameRoot()
+        except Exception as e:
+            log_error("App.build FATAL ERROR: %s" % str(e))
+            import traceback
+            log_error(traceback.format_exc())
+            root = BoxLayout(orientation='vertical')
+            root.add_widget(Label(text='Error! Check crash_log.txt', halign='center'))
+            return root
 
 
 if __name__ == "__main__":
-    GameApp().run()
+    try:
+        GameApp().run()
+    except Exception as e:
+        log_error("FATAL: %s" % str(e))
+        import traceback
+        log_error(traceback.format_exc())
+        raise
