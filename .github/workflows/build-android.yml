@@ -8,38 +8,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Build with Buildozer
+      uses: ArtemSBulgakov/buildozer-action@v1
+      id: buildozer
       with:
-        python-version: '3.8'
+        command: buildozer android debug
+        buildozer_version: 1.5.0
 
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Install dependencies + Buildozer
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y git zip unzip autoconf libtool \
-          pkg-config zlib1g-dev cmake libffi-dev libssl-dev \
-          build-essential openjdk-17-jdk-headless
-        pip install --upgrade pip setuptools wheel
-        pip install Cython==0.29.19 buildozer==1.4.0
-
-    - name: Build APK
-      run: |
-        echo "y" | buildozer android debug
-      timeout-minutes: 90
-
-    - name: Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
-      if: always()
       with:
         name: lights-out-apk
-        path: bin/*.apk
+        path: ${{ steps.buildozer.outputs.filename }}
         retention-days: 30
